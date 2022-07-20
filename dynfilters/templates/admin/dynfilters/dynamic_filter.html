@@ -23,7 +23,7 @@
                     <img src="{% static 'admin/img/icon-changelink.svg' %}">
                 </a>
 
-                <a href="{% url "dynfilters_delete" expr_id=choice.lookup %}" title="Delete filter" style="display:inline;" class="unbind-default-click">
+                <a href="#" data-href="{% url "dynfilters_delete" expr_id=choice.lookup %}" title="Delete filter" style="display:inline;" class="confirm-delete">
                     <img src="{% static 'admin/img/icon-deletelink.svg' %}">
                 </a>
 
@@ -38,20 +38,22 @@
 <script>
     function clickfunction(e) {
         e.preventDefault();
-        console.log("ahoj");
-        console.log(e);
-        console.log(e.currentTarget.href);
         window.location.href = e.currentTarget.href;
         return false;
     }
 
-    django.jQuery('.unbind-default-click').click(clickfunction);
-
-function confirmDelete(href) {
-    const deleteLocation = confirm('Do you really want to delete this filter?');
-    if (deleteLocation) {
-        console.log(href);
-        window.location.href = href;
+    function confirmDelete(e) {
+        e.preventDefault();
+        if (confirm('Do you really want to delete this filter?')) {
+            window.location.href = django.jQuery(this).data("href");
+            return false
+        }
     }
-}
+
+    django.jQuery(document).ready(function($) {
+        $('.unbind-default-click').click(clickfunction);
+        $('.confirm-delete').off("click").on("click", confirmDelete);
+    })
+
+
 </script>
