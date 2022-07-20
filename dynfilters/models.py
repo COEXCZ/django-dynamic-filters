@@ -1,23 +1,22 @@
 from functools import reduce
 from operator import or_
-
-from django.apps import apps
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db import models
 from django.db.models import Q
-from django.db.models.deletion import CASCADE, SET_NULL
-from django.db.models.sql.compiler import SQLCompiler
+from django.db.models.deletion import CASCADE
 from django.db.models.sql.query import Query
-from django.utils.translation import gettext_lazy as _
+from ordered_model.models import OrderedModel
 
 from . import shunting_yard
-from .model_helpers import get_model_obj
+from .model_helpers import get_model
 from .utils import (
     previous,
-    str_as_date, 
-    str_as_date_range, 
+    str_as_date,
+    str_as_date_range, to_int,
 )
+
+User = get_user_model()
 
 
 class DynamicFilterExpr(models.Model):
@@ -60,7 +59,7 @@ class DynamicFilterExpr(models.Model):
         return shunting_yard.evaluate(terms)
 
     def as_sql(self):
-        model_obj = get_model_obj(self.model)
+        model_obj = get_model(self.model)
         query = Query(model_obj)
 
         where = self.as_q().resolve_expression(query)
@@ -71,7 +70,9 @@ class DynamicFilterExpr(models.Model):
         return query_str % tuple(args)
 
 
-class DynamicFilterTerm(models.Model):
+class DynamicFilterTerm(OrderedModel):
+    order_with_respect_to = "filter"
+
     OP_CHOICES = [
         ('-', '-'),
         ('!', 'NOT'),
@@ -116,13 +117,16 @@ class DynamicFilterTerm(models.Model):
     lookup = models.CharField(max_length=16, choices=LOOKUP_CHOICES, default='-')
     value = models.CharField(max_length=100, blank=True, null=True)
     bilateral = models.BooleanField(default=False)
-    order = models.PositiveSmallIntegerField(default=0, blank=True, db_index=True)
 
     @property
     def fields(self):
-        return self.field.split('|')
+        if self.field:
+            return self.field.split('|')
 
     def __str__(self):
+        if not self.field:
+            return "-"
+
         def get_operator():
             if self.op == '!':
                 return '!='
@@ -170,7 +174,7 @@ class DynamicFilterTerm(models.Model):
             return False
 
         if self.lookup == 'in':
-            return self.value.split(',')
+            return self.value.split(',') if self.value else []
 
         if self.lookup == 'range':
             return str_as_date_range(self.value)

@@ -1,11 +1,12 @@
 from itertools import tee, chain
-import collections
+from collections.abc import Iterable
 import datetime
 import itertools
 
 
 def str_as_date(value):
     return datetime.datetime.strptime(value, '%d/%m/%Y').date()
+
 
 def str_as_date_range(value):
     d1, d2 = value.split(',')
@@ -23,7 +24,7 @@ def previous(some_iterable):
     return zip(prevs, items)
 
 
-def flatten(iterable, ltypes=collections.Iterable):
+def flatten(iterable, ltypes=Iterable):
     remainder = iter(iterable)
     while True:
         try:

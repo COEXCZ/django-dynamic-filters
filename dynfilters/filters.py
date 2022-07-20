@@ -18,16 +18,12 @@ from .utils import flatten
 class DynamicFilter(admin.SimpleListFilter):
     title = 'dynamic filter'
     parameter_name = "filter"
-    template = 'dynfilters/dynamic_filter.html'
-
-    email_subject = 'Sharing filter'
-    email_text = 'Hi,\nI would like to share this filter with you:\n\n'
+    template = 'admin/dynfilters/dynamic_filter.html'
 
     def __init__(self, request, params, model, model_admin):
         self.request = request
         self.model_name = get_qualified_model_names(model._meta)[0]
-
-        return super().__init__(request, params, model, model_admin)
+        super().__init__(request, params, model, model_admin)
 
     def has_output(self):
         return True
@@ -48,9 +44,7 @@ class DynamicFilter(admin.SimpleListFilter):
                 "display": title,
                 "lookup": obj.id,
                 "is_global": obj.is_global,
-                "email_body": self.request.build_absolute_uri(
-                    reverse('dynfilters_share', args=(obj.id,))
-                ),
+
             }
 
     def lookups(self, request, model_admin):
@@ -96,6 +90,6 @@ class DynamicFilter(admin.SimpleListFilter):
 
             try:
                 return queryset.filter(obj.as_q())
-            except:
-                messages.error(request, 'The selected filter is buggy and cannot be applied.')
+            except Exception as e:
+                messages.error(request, f"The selected filter is buggy and cannot be applied. {e}")
                 return queryset

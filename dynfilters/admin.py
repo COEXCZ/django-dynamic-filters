@@ -1,19 +1,10 @@
-from furl import furl
-
 from django import forms
-from django.apps import apps
 from django.contrib import admin
-from django.shortcuts import redirect
-from django.urls import reverse
-from django.utils.html import format_html, format_html_join
-
-from adminsortable2.admin import SortableAdminBase, SortableInlineAdminMixin
+from ordered_model.admin import OrderedInlineModelAdminMixin, OrderedTabularInline
 
 from .models import (
     DynamicFilterExpr,
     DynamicFilterTerm,
-    DynamicFilterColumn,
-    DynamicFilterColumnSortOrder,
 )
 
 from .forms import (
@@ -43,37 +34,32 @@ class DynamicFilterInline(admin.TabularInline):
 
         return super().formfield_for_dbfield(db_field, **kwargs)
 
-class DynamicFilterTermInline(SortableInlineAdminMixin, DynamicFilterInline):
+
+class DynamicFilterTermInline(OrderedTabularInline, DynamicFilterInline):
     model = DynamicFilterTerm
     form = DynamicFilterTermInlineForm
     formset = DynamicFilterTermInlineFormSet
     verbose_name = 'Search Criteria'
     verbose_name_plural = 'Search Criterias'
-
-
-class DynamicFilterColumnInline(SortableInlineAdminMixin, DynamicFilterInline):
-    model = DynamicFilterColumn
-    verbose_name = 'Display Column'
-    verbose_name_plural = 'Display Columns'
-
-
-class DynamicFilterColumnSortOrderInline(SortableInlineAdminMixin, DynamicFilterInline):
-    model = DynamicFilterColumnSortOrder
-    verbose_name = 'Sort Order'
-    verbose_name_plural = 'Sort Orders'
+    fields = ('op', 'field', 'lookup', 'value', 'move_up_down_links')
+    readonly_fields = ('move_up_down_links', )
 
 
 @admin.register(DynamicFilterExpr)
-class DynamicFilterExprAdmin(SortableAdminBase, admin.ModelAdmin):
+class DynamicFilterExprAdmin(OrderedInlineModelAdminMixin, admin.ModelAdmin):
     form = DynamicFilterExprForm
-    inlines = [DynamicFilterTermInline]#, DynamicFilterColumnInline, DynamicFilterColumnSortOrderInline]
+    inlines = [DynamicFilterTermInline]
 
     list_per_page = 50
     list_display = ('name', 'model', 'user', 'is_global')
 
+    def save_model(self, request, obj, form, change):
+        obj.user = request.user
+        super().save_model(request, obj, form, change)
+
     def get_form(self, request, obj=None, **kwargs):
         request.parent_object = obj
-        return super().get_form(request, obj, **kwargs)
+        return super(DynamicFilterExprAdmin, self).get_form(request, obj, **kwargs)
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == 'model':
@@ -84,10 +70,10 @@ class DynamicFilterExprAdmin(SortableAdminBase, admin.ModelAdmin):
 
         return super().formfield_for_dbfield(db_field,**kwargs)
 
-    def response_add(self, request, obj, post_url_continue=None):
-        response = super().response_add(request, obj, post_url_continue)
-        
-        return redirect_to_referer_next(request, response)
+    # def response_add(self, request, obj, post_url_continue=None):
+    #     response = super().response_add(request, obj, post_url_continue)
+    #
+    #     return redirect_to_referer_next(request, response)
 
     def response_change(self, request, obj):
         response = super().response_change(request, obj)
