@@ -70,10 +70,8 @@ class DynamicFilterExprAdmin(OrderedInlineModelAdminMixin, admin.ModelAdmin):
 
         return super().formfield_for_dbfield(db_field,**kwargs)
 
-    # def response_add(self, request, obj, post_url_continue=None):
-    #     response = super().response_add(request, obj, post_url_continue)
-    #
-    #     return redirect_to_referer_next(request, response)
+    def has_add_permission(self, request):
+        return False
 
     def response_change(self, request, obj):
         response = super().response_change(request, obj)

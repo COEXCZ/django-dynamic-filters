@@ -13,7 +13,7 @@ from django.db import models as django_models
 class DynamicFilterExprForm(forms.ModelForm):
     class Meta:
         model = DynamicFilterExpr
-        fields = ('name', 'is_global', 'model')
+        fields = ('name', 'is_global', )
 
     def save(self, commit=True, **kwargs):
         return super(DynamicFilterExprForm, self).save(commit=commit)
