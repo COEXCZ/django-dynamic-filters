@@ -55,8 +55,11 @@ class DynamicFilterExpr(models.Model):
         return nterms
 
     def as_q(self):
-        terms = self.normalized_terms()
-        return shunting_yard.evaluate(terms)
+        try:
+            terms = self.normalized_terms()
+            return shunting_yard.evaluate(terms)
+        except Exception as e:
+            return f"error: {e}"
 
     def as_sql(self):
         model_obj = get_model(self.model)

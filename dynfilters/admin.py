@@ -52,6 +52,7 @@ class DynamicFilterExprAdmin(OrderedInlineModelAdminMixin, admin.ModelAdmin):
 
     list_per_page = 50
     list_display = ('name', 'model', 'user', 'is_global')
+    readonly_fields = ("model", "as_q", "as_sql")
 
     def save_model(self, request, obj, form, change):
         obj.user = request.user
