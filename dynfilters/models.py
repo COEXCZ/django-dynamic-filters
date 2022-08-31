@@ -1,5 +1,5 @@
 from functools import reduce
-from operator import or_
+from operator import or_, and_
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db import models
@@ -62,15 +62,18 @@ class DynamicFilterExpr(models.Model):
             return f"error: {e}"
 
     def as_sql(self):
-        model_obj = get_model(self.model)
-        query = Query(model_obj)
+        try:
+            model_obj = get_model(self.model)
+            query = Query(model_obj)
 
-        where = self.as_q().resolve_expression(query)
-        
-        compiler = query.get_compiler(using='default')
-        query_str, args = where.as_sql(compiler, connection)
+            where = self.as_q().resolve_expression(query)
 
-        return query_str % tuple(args)
+            compiler = query.get_compiler(using='default')
+            query_str, args = where.as_sql(compiler, connection)
+
+            return query_str % tuple(args)
+        except Exception as e:
+            return f"error: {e}"
 
 
 class DynamicFilterTerm(OrderedModel):
@@ -89,6 +92,8 @@ class DynamicFilterTerm(OrderedModel):
         ('-', '---------'),
         ('=', 'Equals'),
         ('icontains', 'Contains'),
+        ('icontains_one_of', 'Contains one of'),
+        ('icontains_all_of', 'Contains all of'),
         ('istartswith', 'Starts with'),
         ('iendswith', 'Ends with'),
         ('in', 'One of'),
@@ -163,10 +168,10 @@ class DynamicFilterTerm(OrderedModel):
     def get_keypath(self, field):
         if self.lookup in ('=', 'istrue', 'isfalse'):
             return field
-
         if self.lookup in ('isnull', 'isnotnull'):
             return f'{field}__isnull'
-
+        if self.lookup in ["icontains_one_of", "icontains_all_of"]:
+            return f'{field}__icontains'
         return f'{field}__{self.lookup}'
 
     def get_value(self):
@@ -176,7 +181,7 @@ class DynamicFilterTerm(OrderedModel):
         if self.lookup in ('isnotnull', 'isfalse'):
             return False
 
-        if self.lookup == 'in':
+        if self.lookup in ['in', 'icontains_one_of', 'icontains_all_of']:
             return self.value.split(',') if self.value else []
 
         if self.lookup == 'range':
@@ -191,10 +196,20 @@ class DynamicFilterTerm(OrderedModel):
         return {self.get_keypath(field): self.get_value()}
 
     def as_q(self):
-        q = reduce(or_, [
-            Q(**self.get_term(field))
-            for field in self.fields
-        ])
+        if self.lookup in ["icontains_one_of", "icontains_all_of"]:
+            op_ = or_
+            if self.lookup in "icontains_all_of":
+                op_ = and_
+            q = Q()
+            for field in self.fields:
+                q |= reduce(op_, [
+                    Q(**{self.get_keypath(field): x}) for x in self.get_value()
+                ])
+        else:
+            q = reduce(or_, [
+                Q(**self.get_term(field))
+                for field in self.fields
+            ])
 
         if self.op == '!':
             return ~q
