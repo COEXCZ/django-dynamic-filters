@@ -1,3 +1,4 @@
+import json
 from functools import reduce
 from operator import or_, and_
 from django.contrib.auth import get_user_model
@@ -7,7 +8,6 @@ from django.db.models import Q
 from django.db.models.deletion import CASCADE
 from django.db.models.sql.query import Query
 from ordered_model.models import OrderedModel
-
 from . import shunting_yard
 from .model_helpers import get_model
 from .utils import (
@@ -112,6 +112,10 @@ class DynamicFilterTerm(OrderedModel):
         ('gt', 'Greater Than'),
         ('lte', 'Less Than or Equal To'),
         ('gte', 'Greater Than or Equal To'),
+        ('-', '---- JSONField ----'),
+        ('has_key', 'Has key'),
+        ('contains_json', 'Contains JSON'),
+
     ]
 
     class Meta:
@@ -132,26 +136,29 @@ class DynamicFilterTerm(OrderedModel):
             return self.field.split('|')
 
     def __str__(self):
-        if not self.field:
-            return "-"
+        try:
+            if not self.field:
+                return "-"
 
-        def get_operator():
-            if self.op == '!':
-                return '!='
-            return '=='
+            def get_operator():
+                if self.op == '!':
+                    return '!='
+                return '=='
 
-        if self.op in ('-', '!'):
-            expr = ' OR '.join([
-                f'{self.get_keypath(field)} {get_operator()} {self.get_value()}'
-                for field in self.fields
-            ])
+            if self.op in ('-', '!'):
+                expr = ' OR '.join([
+                    f'{self.get_keypath(field)} {get_operator()} {self.get_value()}'
+                    for field in self.fields
+                ])
 
-            if self.op == '!':
-                f'NOT({expr})'
+                if self.op == '!':
+                    f'NOT({expr})'
 
-            return expr
+                return expr
 
-        return self.op
+            return self.op
+        except Exception as e:
+            return f"Error: {e}"
 
     def clean(self):
         if self.op in ('&', '|', '(', ')'):
@@ -172,9 +179,13 @@ class DynamicFilterTerm(OrderedModel):
             return f'{field}__isnull'
         if self.lookup in ["icontains_one_of", "icontains_all_of"]:
             return f'{field}__icontains'
+        if self.lookup == "contains_json":
+            return f'{field}__contains'
         return f'{field}__{self.lookup}'
 
     def get_value(self):
+        if self.lookup == "contains_json":
+            return json.loads(self.value)
         if self.lookup in ('isnull', 'istrue'):
             return True
 
@@ -196,25 +207,28 @@ class DynamicFilterTerm(OrderedModel):
         return {self.get_keypath(field): self.get_value()}
 
     def as_q(self):
-        if self.lookup in ["icontains_one_of", "icontains_all_of"]:
-            op_ = or_
-            if self.lookup in "icontains_all_of":
-                op_ = and_
-            q = Q()
-            for field in self.fields:
-                q |= reduce(op_, [
-                    Q(**{self.get_keypath(field): x}) for x in self.get_value()
+        try:
+            if self.lookup in ["icontains_one_of", "icontains_all_of"]:
+                q = Q()
+                op_ = or_
+                if self.lookup in "icontains_all_of":
+                    op_ = and_
+                for field in self.fields:
+                    q |= reduce(op_, [
+                        Q(**{self.get_keypath(field): x}) for x in self.get_value()
+                    ])
+            else:
+                q = reduce(or_, [
+                    Q(**self.get_term(field))
+                    for field in self.fields
                 ])
-        else:
-            q = reduce(or_, [
-                Q(**self.get_term(field))
-                for field in self.fields
-            ])
 
-        if self.op == '!':
-            return ~q
-        
-        return q
+            if self.op == '!':
+                return ~q
+
+            return q
+        except:
+            pass
 
 
 class DynamicFilterColumn(models.Model):

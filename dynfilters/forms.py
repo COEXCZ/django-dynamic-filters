@@ -140,6 +140,17 @@ class DynamicFilterTermInlineForm(forms.ModelForm):
                 self._clean_errors.update({'lookup': 'Boolean field. Should be "True/False/Null/NotNull"'})
                 return
 
+    def _clean_jsonfields(self, value, lookup, field, model):
+        """
+        """
+        if self._filter_model_field_type(model, field) in [
+            django_models.JSONField
+        ]:
+            if lookup not in ('has_key', 'contains_json', 'isnull', 'isnotnull'):
+                self._clean_errors.update({'lookup': 'Boolean field. Lookup should be "Has Key/Contains JSON'
+                                                     '/Null/NotNull"'})
+                return
+
     def clean(self):
         errors = {}
 
@@ -174,3 +185,4 @@ class DynamicFilterTermInlineForm(forms.ModelForm):
         self._clean_numericfields(value, lookup, field, model)
         self._clean_relationfields(value, lookup, field, model, fields_chain)
         self._clean_booleanfields(value, lookup, field, model)
+        self._clean_jsonfields(value, lookup, field, model)
