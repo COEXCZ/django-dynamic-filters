@@ -2,6 +2,7 @@ from operator import itemgetter
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_ipv46_address
 from django.forms import BaseInlineFormSet
 
 from .model_helpers import get_model
@@ -140,6 +141,19 @@ class DynamicFilterTermInlineForm(forms.ModelForm):
                 self._clean_errors.update({'lookup': 'Boolean field. Should be "True/False/Null/NotNull"'})
                 return
 
+    def _clean_genericipaddressfields(self, value, lookup, field, model):
+        if self._filter_model_field_type(model, field) in [
+            django_models.GenericIPAddressField
+        ]:
+            if lookup not in ('=', 'in'):
+                self._clean_errors.update({'lookup': 'Generic IP Address field. Lookup should be "Equals/One of"'})
+                return
+            try:
+                validate_ipv46_address(value)
+            except ValidationError as e:
+                self._clean_errors.update({'value': e})
+                return
+
     def _clean_jsonfields(self, value, lookup, field, model):
         """
         """
@@ -186,3 +200,4 @@ class DynamicFilterTermInlineForm(forms.ModelForm):
         self._clean_relationfields(value, lookup, field, model, fields_chain)
         self._clean_booleanfields(value, lookup, field, model)
         self._clean_jsonfields(value, lookup, field, model)
+        self._clean_genericipaddressfields(value, lookup, field, model)
